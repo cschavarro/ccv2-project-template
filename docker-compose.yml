@@ -1,0 +1,24 @@
+version: "3"
+
+services:
+  mssql:
+    image: "mcr.microsoft.com/mssql/server:2019-latest"
+    ports:
+      - "1433:1433"
+    environment:
+      - SA_PASSWORD=localSAPassw0rd
+      - ACCEPT_EULA=ok
+  mssqlinit:
+    image: "mcr.microsoft.com/mssql-tools"
+    volumes: 
+      - ./docker-resources:/tmp/resources
+    command: bash -c "set -e; cd /tmp/resources && bash configure-db.sh"
+    environment:
+      - SQLSERVER=mssql
+      - SA_PASSWORD=localSAPassw0rd
+    depends_on:
+      - mssql
+  azurite:
+    image: mcr.microsoft.com/azure-storage/azurite
+    ports: 
+      - 10000:10000

@@ -1,0 +1,83 @@
+# based on de.hybris.platform.commercewebservices.core.cronjob.OldCartRemovalJob
+# and de.hybris.platform.commerceservices.order.dao.impl.DefaultCommerceCartDao.getCartsForRemovalForSiteAndUser
+#
+# - cleanup anonymous carts after two weeks for *every* site (excluding saved carts)
+# - cleanup carts of registered users after four weeks for *every* site (excluding saved carts)
+
+# Import config properties into impex macros
+UPDATE GenericItem[processor=de.hybris.platform.commerceservices.impex.impl.ConfigPropertyImportProcessor];pk[unique=true]
+$sessionLanguage=$config-sanecleanup.jobs.sessionlanguage
+$retentionTimeRegular=$config-sanecleanup.retentiontimeseconds.cart.regular
+$retentionTimeAnonymous =$config-sanecleanup.retentiontimeseconds.cart.anonymous
+
+# @readme Cart
+# - Are there excessive amount of carts per site or per user?
+# - Too many saved carts?
+# - Stale (= old) carts?
+# SELECT
+#   {b:uid} AS "BaseSite",
+#   {u:uid} AS "User",
+#   CASE
+#     WHEN
+#       {c:saveTime} IS NULL
+#     THEN
+#       'regular'
+#     ELSE
+#       'saved'
+#   END
+#   AS "cart type",
+#   COUNT({c:pk}) AS "total",
+#   MIN({c:modifiedtime}) AS "oldest",
+#   MAX({c:modifiedtime}) AS "newest"
+# FROM
+#   { Cart AS c
+#   LEFT JOIN
+#     USER AS u
+#     ON {c:user} = {u:pk}
+#   LEFT JOIN
+#     BaseSite AS b
+#     ON {c:site} = {b:pk} }
+# GROUP BY
+#   {b:uid}, {u:uid},
+#   CASE
+#     WHEN
+#       {c:saveTime} IS NULL
+#     THEN
+#       'regular'
+#     ELSE
+#       'saved'
+#   END
+# ORDER BY
+#   "total" DESC
+INSERT_UPDATE FlexibleSearchRetentionRule; code[unique = true]; searchQuery; retentionTimeSeconds; actionReference          ;
+                                  ; cartRule           ; "
+  SELECT {c:pk}, {c:itemtype}
+    FROM { Cart AS c LEFT JOIN User AS u ON {c:user} = {u:pk} }
+   WHERE {c:saveTime} IS NULL
+     AND {u:uid} <> 'anonymous'
+     AND {c:modifiedTime} < ?CALC_RETIREMENT_TIME"                        ; $retentionTimeRegular          ; basicRemoveCleanupAction ;
+                                  ; anonymousCartRule  ; "
+  SELECT {c:pk}, {c:itemtype}
+    FROM {Cart AS c LEFT JOIN User AS u ON {c:user} = {u:pk}}
+   WHERE {c:saveTime} IS NULL
+     AND ( {u:uid} = 'anonymous' OR {u:uid} IS NULL )
+     AND {c:modifiedTime} < ?CALC_RETIREMENT_TIME"                        ; $retentionTimeAnonymous           ; basicRemoveCleanupAction ;
+
+INSERT_UPDATE RetentionJob; code[unique = true]     ; retentionRule(code); batchSize
+                   ; cartCleanupJob          ; cartRule           ; 1000
+                   ; anonymousCartCleanupJob ; anonymousCartRule  ; 1000
+INSERT_UPDATE CronJob; code[unique = true]         ; job(code)               ; sessionLanguage(isoCode)[default = $sessionLanguage]
+              ; cartCleanupCronJob          ; cartCleanupJob          ;
+              ; anonymousCartCleanupCronJob ; anonymousCartCleanupJob ;
+
+###
+
+INSERT_UPDATE CompositeCronJob;code[unique=true];job(code);sessionLanguage(isoCode)[default = $sessionLanguage]
+;cartCleanupCompositeCronJob;compositeJobPerformable;
+INSERT Trigger; cronJob(code)[unique = true]; cronExpression
+# every day at 03:00
+; cartCleanupCompositeCronJob    ; 0 0 3 * * ?
+
+INSERT_UPDATE CompositeEntry;code[unique=true];executableCronJob(code);compositeCronJob(code)[default='cartCleanupCompositeCronJob']
+;cartCleanupCronJobEntry;cartCleanupCronJob;
+;anonymousCartCleanupCronJobEntry;anonymousCartCleanupCronJob;

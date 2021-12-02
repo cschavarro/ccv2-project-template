@@ -1,0 +1,88 @@
+# Import config properties into impex macros
+UPDATE GenericItem[processor=de.hybris.platform.commerceservices.impex.impl.ConfigPropertyImportProcessor];pk[unique=true]
+$sessionLanguage=$config-sanecleanup.jobs.sessionlanguage
+$retentionTime = $config-sanecleanup.retentiontimeseconds.emailmessage
+
+# @readme EmailMessage
+# - Are there more than a handful sent/unsent messages?
+# - Are there messages that do not belong to any process?
+# SELECT
+#   {bp:processDefinitionName} AS "source",
+#   {m:sent},
+#   COUNT({m:pk}) AS "total",
+#   MIN({m:modifiedtime}) AS "oldest",
+#   MAX({m:modifiedtime}) AS "newest"
+# FROM
+#   {EmailMessage AS m
+#   LEFT JOIN
+#     BusinessProcess AS bp
+#     ON {m:process} = {bp:pk} }
+# GROUP BY
+#   {bp:processDefinitionName}, {m:sent}
+# ORDER BY
+#   "total" DESC
+INSERT_UPDATE FlexibleSearchRetentionRule; code[unique = true]; searchQuery; retentionTimeSeconds; actionReference          ;
+; emailMessageRule     ; "
+  SELECT {m:pk}, {m:itemtype}
+    FROM {EmailMessage AS m LEFT JOIN BusinessProcess AS bp ON {m:process} = {bp:pk}}
+   WHERE {bp:pk} IS NULL
+     AND {m:modifiedTime} < ?CALC_RETIREMENT_TIME"                        ; $retentionTime           ; basicRemoveCleanupAction ;
+INSERT_UPDATE RetentionJob; code[unique = true]  ; retentionRule(code); batchSize
+; emailMessageCleanupJob ; emailMessageRule     ; 1000
+INSERT_UPDATE CronJob; code[unique = true]      ; job(code)            ; sessionLanguage(isoCode)[default = $sessionLanguage]
+; emailMessageCleanupCronJob ; emailMessageCleanupJob ;
+
+
+INSERT_UPDATE FlexibleSearchRetentionRule; code[unique = true]; searchQuery; retentionTimeSeconds; actionReference          ;
+; emailAddressRule     ; "
+SELECT DISTINCT {a:pk}, {a:itemType} from {
+EmailAddress AS a
+LEFT JOIN EmailMessage2ToAddressesRel AS to ON {to:target} = {a:pk}
+LEFT JOIN EmailMessage2CcAddressesRel AS cc ON {cc:target} = {a:pk}
+LEFT JOIN EmailMessage2BccAddressesRel AS bcc ON {bcc:target} = {a:pk}
+LEFT JOIN EmailMessage AS m ON {m:fromAddress} = {a:pk}
+}
+WHERE {to:source} IS NULL
+  AND {cc:source} IS NULL
+  AND {bcc:source} IS NULL
+  AND {m:pk} IS NULL"                        ; 0           ; basicRemoveCleanupAction ;
+INSERT_UPDATE RetentionJob; code[unique = true]  ; retentionRule(code); batchSize
+; emailAddressCleanupJob ; emailAddressRule     ; 1000
+INSERT_UPDATE CronJob; code[unique = true]      ; job(code)            ; sessionLanguage(isoCode)[default = $sessionLanguage]
+; emailAddressCleanupCronJob ; emailAddressCleanupJob ;
+
+
+
+# EmailAttachment
+INSERT_UPDATE FlexibleSearchRetentionRule; code[unique = true]; searchQuery; retentionTimeSeconds; actionReference          ;
+; emailAttachmentRule     ; "
+SELECT {a:pk}, {a:itemType} from {
+EmailAttachment AS a
+LEFT JOIN EmailMessage AS m ON {a:message} = {m:pk}
+}
+WHERE {m:pk} IS NULL"                        ; 0           ; basicRemoveCleanupAction ;
+INSERT_UPDATE RetentionJob; code[unique = true]  ; retentionRule(code); batchSize
+; emailAttachmentCleanupJob ; emailAttachmentRule     ; 1000
+INSERT_UPDATE CronJob; code[unique = true]      ; job(code)            ; sessionLanguage(isoCode)[default = $sessionLanguage]
+; emailAttachmentCleanupCronJob ; emailAttachmentCleanupJob ;
+
+
+###
+
+INSERT_UPDATE CompositeCronJob;code[unique=true];job(code);sessionLanguage(isoCode)[default = $sessionLanguage]
+;emailRetentionCompositeCronJob;compositeJobPerformable;
+INSERT Trigger; cronJob(code)[unique = true]; cronExpression
+# every day at 02:00
+; emailRetentionCompositeCronJob    ; 0 0 2 * * ?
+
+INSERT_UPDATE CompositeEntry;code[unique=true];executableCronJob(code);compositeCronJob(code)[default='emailRetentionCompositeCronJob']
+;emailMessageCleanupCronJobEntry;emailMessageCleanupCronJob;
+;emailAddressCleanupJobEntry;emailAddressCleanupCronJob;
+;emailAttachmentCleanupCronJobEntry;emailAttachmentCleanupCronJob;
+
+# ensure correct order of execution
+UPDATE CompositeCronJob;code[unique=true];compositeEntries(code)
+;emailRetentionCompositeCronJob;"emailMessageCleanupCronJobEntry,
+emailAddressCleanupJobEntry,
+emailAttachmentCleanupCronJobEntry
+"

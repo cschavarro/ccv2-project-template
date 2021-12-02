@@ -1,0 +1,60 @@
+# Delete all generated jobs without a trigger
+
+# Import config properties into impex macros
+UPDATE GenericItem[processor = de.hybris.platform.commerceservices.impex.impl.ConfigPropertyImportProcessor]; pk[unique = true]
+$sessionLanguage = $config-sanecleanup.jobs.sessionlanguage
+$retentionTimeCronjobs=$config-sanecleanup.retentiontimeseconds.cronjob.generated
+$retentionTimeSolrIndexerJob =$config-sanecleanup.retentiontimeseconds.solrindexerjob.generated
+
+# @readme CronJob (auto-generated)
+# Are there too many (>10) outdated, auto-geneated jobs in your system?
+# SELECT
+#   {t:code} AS "CronJob Type",
+#   COUNT({c:pk}) AS "total",
+#   MIN({c:modifiedtime}) AS "oldest",
+#   MAX({c:modifiedtime}) AS "newest"
+# FROM
+#   {CronJob AS c
+#   JOIN
+#     ComposedType AS t
+#     ON {c:itemtype} = {t:pk}
+#   LEFT JOIN
+#     TRIGGER AS trg
+#     ON {trg:cronjob} = {c:pk} }
+# WHERE
+#   {trg:pk} IS NULL
+#   AND {c:code} LIKE '00%'
+#   AND {t:code} IN
+#   (
+#     'ImpExImportCronJob',
+#     'CatalogVersionSyncCronJob',
+#     'SolrIndexerCronJob'
+#   )
+# GROUP BY
+#   {t:code}
+# ORDER BY
+#   "total" DESC
+INSERT_UPDATE FlexibleSearchRetentionRule; code[unique = true]; searchQuery; retentionTimeSeconds; actionReference          ;
+                                  ; cronJobRule        ; "
+SELECT {c:pk}, {c:itemType}
+  FROM {CronJob AS c JOIN ComposedType AS t ON {c:itemtype} = {t:pk} LEFT JOIN Trigger AS trg ON {trg:cronjob} = {c:pk} }
+ WHERE {trg:pk} IS NULL
+   AND {c:code} LIKE '00%'
+   AND {t:code} IN ( 'ImpExImportCronJob', 'CatalogVersionSyncCronJob', 'SolrIndexerCronJob' )
+   AND {c:endTime} < ?CALC_RETIREMENT_TIME"                             ; $retentionTimeCronjobs           ; basicRemoveCleanupAction ;
+                                  ; solrJobRule     ; "
+SELECT {j:pk},{j:itemType}
+  FROM {ServicelayerJob AS j LEFT JOIN Trigger AS trg on {trg:job} = {j:pk} }
+ WHERE {trg:pk} IS NULL
+   AND ({j:code} LIKE 'solrIndexerJob_full_%' OR {j:code} LIKE 'solrIndexerJob_update_%')
+   AND {j:modifiedtime} < ?CALC_RETIREMENT_TIME"                    ; $retentionTimeSolrIndexerJob             ; basicRemoveCleanupAction ;
+INSERT_UPDATE RetentionJob; code[unique = true]; retentionRule(code); batchSize
+                   ; cronJobCleanupJob  ; cronJobRule        ; 1000
+                   ; solrJobCleanupJob  ; solrJobRule        ; 1000
+INSERT_UPDATE CronJob; code[unique = true]   ; job(code)         ; sessionLanguage(isoCode)[default = $sessionLanguage]
+              ; cronJobCleanupCronJob ; cronJobCleanupJob ;
+              ; solrJobCleanupCronJob ; solrJobCleanupJob ;
+INSERT Trigger; cronJob(code)[unique = true]; cronExpression
+# every day at 04:00
+              ; cronJobCleanupCronJob       ; 0 0 4 * * ?
+              ; solrJobCleanupCronJob       ; 0 0 4 * * ?

@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<beans xmlns="http://www.springframework.org/schema/beans"
+       xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+       xsi:schemaLocation="http://www.springframework.org/schema/beans
+           http://www.springframework.org/schema/beans/spring-beans.xsd">
+
+  <bean id="saneCleanupListener" class="mpern.sap.cleanup.CleanupAfterInitListener" parent="abstractEventListener">
+    <constructor-arg ref="importService" />
+    <constructor-arg ref="flexibleSearchService" />
+    <constructor-arg ref="modelService" />
+    <constructor-arg ref="userService" />
+  </bean>
+
+  <bean id="jdbcVersionGCPerformable" class="mpern.sap.cleanup.cms2.CMSVersionGCPerformable" parent="abstractJobPerformable">
+    <constructor-arg ref="configurationService" />
+    <constructor-arg ref="cmsVersionGCService" />
+    <constructor-arg ref="jdbcTemplate" />
+    <constructor-arg ref="typeService" />
+  </bean>
+</beans>

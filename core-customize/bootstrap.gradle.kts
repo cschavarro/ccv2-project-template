@@ -60,33 +60,61 @@ tasks.register<Copy>("copyConfigImpex") {
     into("hybris/bin/custom/${inputName()}/${inputName()}storefront/resources/impex/")
 }
 
-tasks.register<HybrisAntTask>("generateOcc") {
+tasks.register<HybrisAntTask>("generateCommercewebservice") {
     dependsOn("bootstrapPlatform", "createDefaultConfig")
 
     args("extgen")
-    antProperty("input.template", "yocc")
-    antProperty("input.name", "${inputName()}occ")
-    antProperty("input.package", "${inputPackage()}.occ")
+    antProperty("input.template", "ycommercewebservices")
+    antProperty("input.name", "${inputName()}commercewebservices")
+    antProperty("input.package", "${inputPackage()}.commercewebservices")
 }
 
-tasks.register<HybrisAntTask>("generateOccTests") {
+tasks.register<HybrisAntTask>("generateCommercewebserviceTests") {
     dependsOn("bootstrapPlatform", "createDefaultConfig")
 
     args("extgen")
-    antProperty("input.template", "yocctests")
-    antProperty("input.name", "${inputName()}occtests")
-    antProperty("input.package", "${inputPackage()}.occ.tests")
+    antProperty("input.template", "ycommercewebservicestest")
+    antProperty("input.name", "${inputName()}commercewebservicestests")
+    antProperty("input.package", "${inputPackage()}.commercewebservices.tests")
 }
 
 tasks.register("generateCode") {
-    dependsOn("generateNewStorefront", "copyConfigImpex", "generateOcc", "generateOccTests")
+    dependsOn("generateNewStorefront", "copyConfigImpex", "generateCommercewebservice", "generateCommercewebserviceTests")
     doLast {
          ant.withGroovyBuilder {
-            "move"("file" to "hybris/bin/custom/${inputName()}occ", "todir" to "hybris/bin/custom/${inputName()}")
-            "move"("file" to "hybris/bin/custom/${inputName()}occtests", "todir" to "hybris/bin/custom/${inputName()}")
+            "move"("file" to "hybris/bin/custom/${inputName()}commercewebservices", "todir" to "hybris/bin/custom/${inputName()}")
+            "move"("file" to "hybris/bin/custom/${inputName()}commercewebservicestests", "todir" to "hybris/bin/custom/${inputName()}")
         }
     }
 }
+
+// tasks.register<HybrisAntTask>("generateOcc") {
+//     dependsOn("bootstrapPlatform", "createDefaultConfig")
+
+//     args("extgen")
+//     antProperty("input.template", "yocc")
+//     antProperty("input.name", "${inputName()}occ")
+//     antProperty("input.package", "${inputPackage()}.occ")
+// }
+
+// tasks.register<HybrisAntTask>("generateOccTests") {
+//     dependsOn("bootstrapPlatform", "createDefaultConfig")
+
+//     args("extgen")
+//     antProperty("input.template", "yocctests")
+//     antProperty("input.name", "${inputName()}occtests")
+//     antProperty("input.package", "${inputPackage()}.occ.tests")
+// }
+
+// tasks.register("generateCode") {
+//     dependsOn("generateNewStorefront", "copyConfigImpex", "generateOcc", "generateOccTests")
+//     doLast {
+//          ant.withGroovyBuilder {
+//             "move"("file" to "hybris/bin/custom/${inputName()}occ", "todir" to "hybris/bin/custom/${inputName()}")
+//             "move"("file" to "hybris/bin/custom/${inputName()}occtests", "todir" to "hybris/bin/custom/${inputName()}")
+//         }
+//     }
+// }
 
 //** setup hybris/config folder
 tasks.register<Copy>("mergeConfigFolder") {

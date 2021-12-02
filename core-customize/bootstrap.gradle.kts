@@ -69,25 +69,16 @@ tasks.register<HybrisAntTask>("generateCommercewebservice") {
     antProperty("input.package", "${inputPackage()}.commercewebservices")
 }
 
-tasks.register<HybrisAntTask>("generateCommercewebserviceTests") {
-    dependsOn("bootstrapPlatform", "createDefaultConfig")
-
-    args("extgen")
-    antProperty("input.template", "ycommercewebservicestest")
-    antProperty("input.name", "${inputName()}commercewebservicestests")
-    antProperty("input.package", "${inputPackage()}.commercewebservices.tests")
-}
-
 tasks.register("generateCode") {
-    dependsOn("generateNewStorefront", "copyConfigImpex", "generateCommercewebservice", "generateCommercewebserviceTests")
+    dependsOn("generateNewStorefront", "copyConfigImpex", "generateCommercewebservice")
     doLast {
          ant.withGroovyBuilder {
             "move"("file" to "hybris/bin/custom/${inputName()}commercewebservices", "todir" to "hybris/bin/custom/${inputName()}")
-            "move"("file" to "hybris/bin/custom/${inputName()}commercewebservicestests", "todir" to "hybris/bin/custom/${inputName()}")
         }
     }
 }
 
+// Commented out OCC generation as it's not supported  for 1905 versions
 // tasks.register<HybrisAntTask>("generateOcc") {
 //     dependsOn("bootstrapPlatform", "createDefaultConfig")
 

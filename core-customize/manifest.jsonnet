@@ -8,7 +8,7 @@ local nonstandard_context_paths = {
   oauth2: '/authorizationserver',
   maintenanceweb: '/maintenance',
   commercewebservices: '/occ',
-  @projectName@commercewebservices: '/occ',
+  belcorpcommercewebservices: '/occ',
   scimwebservices: '/scim',
   orbeonweb: '/web-orbeon',
 };
@@ -26,7 +26,7 @@ local webapp(extension, path=null) = {
 
 // CONFIGURE YOUR MANIFEST HERE
 
-local storefrontExtension = '@projectName@storefront';
+local storefrontExtension = 'belcorpstorefront';
 local storefrontContextRoot = '';
 local storefrontAddons = [
   'smarteditaddon',
@@ -153,7 +153,7 @@ function(intExtPackVersion=null, solrVersion=null, solrCustom='solr') {
       name: 'api',
       properties: [],
       webapps: [
-        webapp('@projectName@commercewebservices'),
+        webapp('belcorpcommercewebservices'),
         // only necessary for checkout/payment mocks
         // https://help.sap.com/viewer/4c33bf189ab9409e84e589295c36d96e/latest/en-US/8abddeed86691014be559318fab13d44.html
         webapp('acceleratorservices'),

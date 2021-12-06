@@ -15,6 +15,10 @@ repositories {
     mavenCentral()
 }
 
+//*******************************
+//* Setup Environments properties
+//*******************************
+
 val envsDirPath = "hybris/config/environments"
 val envValue = if (project.hasProperty("environment")) project.property("environment") else "local"
 
@@ -98,7 +102,6 @@ tasks.register<Copy>("enableModeltMock") {
 //***************************
 //* Set up Environment tasks
 //***************************
-
 val symlink = tasks.register("symlinkConfig") {
     println("Generating Config SymLinks...")
     

@@ -15,6 +15,15 @@ repositories {
     mavenCentral()
 }
 
+val envsDir = "hybris/config/environments"
+val envValue = if (project.hasProperty("environment")) project.property("environment") else "local"
+
+val optionalConfigDir = file("hybris/config/optional-config")
+val optionalConfigs = mapOf(
+    "10-local.properties" to file("${envsDir}/commons/common.properties"),
+    "20-local.properties" to file("${envsDir}/${envValue}/local.properties")
+)
+
 //Optional: automate downloads from launchpad.support.sap.com
 //  remove this block if you use something better, like Maven
 //  Recommended reading: 
@@ -73,22 +82,20 @@ if (project.hasProperty("sUser") && project.hasProperty("sUserPass")) {
     }
 }
 
-var envValue = "local";
-if (project.hasProperty("environment")) {
-    envValue = project.property("environment") as String
+// https://help.sap.com/viewer/b2f400d4c0414461a4bb7e115dccd779/LATEST/en-US/784f9480cf064d3b81af9cad5739fecc.html
+tasks.register<Copy>("enableModeltMock") {
+    from("hybris/bin/custom/extras/modelt/extensioninfo.disabled")
+    into("hybris/bin/custom/extras/modelt/")
+    rename { "extensioninfo.xml" }
 }
 
-val optionalConfigDir = file("hybris/config/optional-config")
-val optionalConfigs = mapOf(
-    "10-local.properties" to file("hybris/config/environments/commons/common.properties"),
-    "20-local.properties" to file("hybris/config/environments/${envValue}/local.properties")
-)
 val symlink = tasks.register("symlinkConfig") {
-    println("Generating Config SymLinks")
+    println("Generating Config SymLinks...")
+    dependsOn("validateEnvironment")
 }
 optionalConfigs.forEach{
     val singleLink = tasks.register<Exec>("symlink${it.key}") {
-        println("Generating SymLink for ${it.key}")
+        println("Generating SymLink for ${it.key}...")
         val path = it.value.relativeTo(optionalConfigDir)
         if (Os.isFamily(Os.FAMILY_UNIX)) {
             commandLine("sh", "-c", "ln -sfn ${path} ${it.key}")
@@ -104,6 +111,20 @@ optionalConfigs.forEach{
     }
 }
 
+tasks.register("validateEnvironment") {
+    println("Validating environment...")
+    if (!file("${envsDir}/${envValue}").exists()) {
+        throw GradleException("Environment folder does not exist")
+    }
+}
+
+// tasks.register<WriteProperties>("generateDeveloperProperties") {
+//     comment = "GENEREATED AT " + java.time.Instant.now()
+//     outputFile = project.file("hybris/config/local.properties")
+
+//     property("hybris.optional.config.dir", "\${HYBRIS_CONFIG_DIR}/local-config")
+// }
+
 tasks.register<WriteProperties>("generateLocalProperties") {
     comment = "GENEREATED AT " + java.time.Instant.now()
     outputFile = project.file("hybris/config/local.properties")
@@ -111,21 +132,8 @@ tasks.register<WriteProperties>("generateLocalProperties") {
     property("hybris.optional.config.dir", "\${HYBRIS_CONFIG_DIR}/local-config")
 }
 
-// https://help.sap.com/viewer/b2f400d4c0414461a4bb7e115dccd779/LATEST/en-US/784f9480cf064d3b81af9cad5739fecc.html
-tasks.register<Copy>("enableModeltMock") {
-    from("hybris/bin/custom/extras/modelt/extensioninfo.disabled")
-    into("hybris/bin/custom/extras/modelt/")
-    rename { "extensioninfo.xml" }
-}
-
 tasks.named("installManifestAddons") {
     mustRunAfter("generateLocalProperties")
-}
-
-tasks.register("createLocalSymLinks") {
-    // mustRunAfter("bootstrapPlatform")
-    group = "SAP Commerce"
-    description = "Setup local development"
 }
 
 tasks.register("setupEnvironment") {

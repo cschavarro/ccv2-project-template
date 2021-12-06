@@ -15,13 +15,14 @@ repositories {
     mavenCentral()
 }
 
-val envsDir = "hybris/config/environments"
+val envsDirPath = "hybris/config/environments"
 val envValue = if (project.hasProperty("environment")) project.property("environment") else "local"
 
-val optionalConfigDir = file("hybris/config/optional-config")
+val optionalConfigDirPath = "hybris/config/environments"
+val optionalConfigDir = file("${optionalConfigDirPath}")
 val optionalConfigs = mapOf(
-    "10-local.properties" to file("${envsDir}/commons/common.properties"),
-    "20-local.properties" to file("${envsDir}/${envValue}/local.properties")
+    "10-local.properties" to file("${envsDirPath}/commons/common.properties"),
+    "20-local.properties" to file("${envsDirPath}/${envValue}/local.properties")
 )
 
 //Optional: automate downloads from launchpad.support.sap.com
@@ -113,23 +114,31 @@ optionalConfigs.forEach{
 
 tasks.register("validateEnvironment") {
     println("Validating environment...")
-    if (!file("${envsDir}/${envValue}").exists()) {
+    if (!file("${envsDirPath}/${envValue}/local.properties").exists()) {
         throw GradleException("Environment folder does not exist")
     }
 }
 
-// tasks.register<WriteProperties>("generateDeveloperProperties") {
-//     comment = "GENEREATED AT " + java.time.Instant.now()
-//     outputFile = project.file("hybris/config/local.properties")
+tasks.register<Copy>("generateDeveloperProperties") {
+    println("Generating Developer properties...")
+    onlyIf {
+        envValue == "local"
+    }
+    from("${envDir}/local/sample-developer.local")
+    into("${optionalConfigDirPath}/99-local.properties")
 
-//     property("hybris.optional.config.dir", "\${HYBRIS_CONFIG_DIR}/local-config")
-// }
+    dependsOn("validateEnvironment")
+}
 
 tasks.register<WriteProperties>("generateLocalProperties") {
+    println("Generating Local properties...")
     comment = "GENEREATED AT " + java.time.Instant.now()
     outputFile = project.file("hybris/config/local.properties")
 
     property("hybris.optional.config.dir", "\${HYBRIS_CONFIG_DIR}/local-config")
+
+    dependsOn("generateDeveloperProperties")
+    mustRunAfter("symlinkConfig")
 }
 
 tasks.named("installManifestAddons") {
@@ -142,9 +151,3 @@ tasks.register("setupEnvironment") {
 
     dependsOn("bootstrapPlatform", "symlinkConfig", "generateLocalProperties","installManifestAddons", "enableModeltMock")
 }
-
-// tasks.register("setupLocalDevelopment") {
-//     group = "SAP Commerce"
-//     description = "Setup local development"
-//     dependsOn("bootstrapPlatform", "generateLocalProperties", "installManifestAddons", "enableModeltMock")
-// }

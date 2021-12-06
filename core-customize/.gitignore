@@ -73,4 +73,4 @@ hybris/config/local.properties
 hybris/config/solr/instances/default/configsets
 
 # developer-specific properties
-hybris/config/optional-config/
+hybris/config/optional-config

@@ -73,6 +73,37 @@ if (project.hasProperty("sUser") && project.hasProperty("sUserPass")) {
     }
 }
 
+var envValue = "local";
+if (project.hasProperty("environment")) {
+    envValue = project.property("environment") as String
+}
+
+val optionalConfigDir = file("hybris/config/optional-config")
+val optionalConfigs = mapOf(
+    "10-local.properties" to file("hybris/config/environments/commons/common.properties"),
+    "20-local.properties" to file("hybris/config/environments/${envValue}/local.properties")
+)
+val symlink = tasks.register("symlinkConfig") {
+    println("Generating Config SymLinks")
+}
+optionalConfigs.forEach{
+    val singleLink = tasks.register<Exec>("symlink${it.key}") {
+        println("Generating SymLink for ${it.key}")
+        val path = it.value.relativeTo(optionalConfigDir)
+        if (Os.isFamily(Os.FAMILY_UNIX)) {
+            commandLine("sh", "-c", "ln -sfn ${path} ${it.key}")
+        } else {
+            // https://blogs.windows.com/windowsdeveloper/2016/12/02/symlinks-windows-10/
+            val windowsPath = path.toString().replace("[/]".toRegex(), "\\")
+            commandLine("cmd", "/c", """mklink /d "${it.key}" "${windowsPath}" """)
+        }
+        workingDir(optionalConfigDir)
+    }
+    symlink.configure {
+        dependsOn(singleLink)
+    }
+}
+
 tasks.register<WriteProperties>("generateLocalProperties") {
     comment = "GENEREATED AT " + java.time.Instant.now()
     outputFile = project.file("hybris/config/local.properties")
@@ -91,8 +122,21 @@ tasks.named("installManifestAddons") {
     mustRunAfter("generateLocalProperties")
 }
 
-tasks.register("setupLocalDevelopment") {
+tasks.register("createLocalSymLinks") {
+    // mustRunAfter("bootstrapPlatform")
     group = "SAP Commerce"
     description = "Setup local development"
-    dependsOn("bootstrapPlatform", "generateLocalProperties", "installManifestAddons", "enableModeltMock")
 }
+
+tasks.register("setupEnvironment") {
+    group = "SAP Commerce"
+    description = "Setup local development"
+
+    dependsOn("bootstrapPlatform", "symlinkConfig", "generateLocalProperties","installManifestAddons", "enableModeltMock")
+}
+
+// tasks.register("setupLocalDevelopment") {
+//     group = "SAP Commerce"
+//     description = "Setup local development"
+//     dependsOn("bootstrapPlatform", "generateLocalProperties", "installManifestAddons", "enableModeltMock")
+// }

@@ -148,8 +148,16 @@
             "location": "hybris/config/cloud/aspect/admin.properties"
          },
          {
-            "location": "hybris/config/cloud/persona/development.properties",
+            "location": "hybris/config/environments/development/local.properties",
             "persona": "development"
+         },
+         {
+            "location": "hybris/config/environments/staging/local.properties",
+            "persona": "staging"
+         },
+         {
+            "location": "hybris/config/environments/production/local.properties",
+            "persona": "production"
          }
       ]
    }

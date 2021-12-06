@@ -11,7 +11,7 @@ hybris/roles/
 hybris/log/
 hybris/temp/
 hybris/data/
-hybris/config/local-config/99-local.properties
+hybris/config/optional-config/
 
 # only allow custom extension
 hybris/bin/*
@@ -74,4 +74,4 @@ hybris/config/local.properties
 hybris/config/solr/instances/default/configsets
 
 # developer-specific properties
-hybris/config/local-config/99-local.properties
+hybris/config/optional-config/99-local.properties

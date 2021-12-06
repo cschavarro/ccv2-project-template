@@ -124,7 +124,7 @@ tasks.register<Copy>("generateDeveloperProperties") {
     onlyIf {
         envValue == "local"
     }
-    from("${envDir}/local/sample-developer.local")
+    from("${envDir}/local/sample-developer.properties")
     into("${optionalConfigDirPath}/99-local.properties")
 
     dependsOn("validateEnvironment")

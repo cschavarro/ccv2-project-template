@@ -18,18 +18,30 @@ repositories {
 val envsDirPath = "hybris/config/environments"
 val envValue = if (project.hasProperty("environment")) project.property("environment") else "local"
 
-val optionalConfigDirPath = "hybris/config/environments"
+val optionalConfigDirPath = "hybris/config/optional-config"
 val optionalConfigDir = file("${optionalConfigDirPath}")
 val optionalConfigs = mapOf(
     "10-local.properties" to file("${envsDirPath}/commons/common.properties"),
     "20-local.properties" to file("${envsDirPath}/${envValue}/local.properties")
 )
 
+//************
+//* Other Task
+//************
+
+// https://help.sap.com/viewer/b2f400d4c0414461a4bb7e115dccd779/LATEST/en-US/784f9480cf064d3b81af9cad5739fecc.html
+tasks.register<Copy>("enableModeltMock") {
+    from("hybris/bin/custom/extras/modelt/extensioninfo.disabled")
+    into("hybris/bin/custom/extras/modelt/")
+    rename { "extensioninfo.xml" }
+}
+
 //Optional: automate downloads from launchpad.support.sap.com
 //  remove this block if you use something better, like Maven
 //  Recommended reading: 
 //  https://github.com/SAP/commerce-gradle-plugin/blob/master/docs/FAQ.md#downloadPlatform
-if (project.hasProperty("sUser") && project.hasProperty("sUserPass")) {
+
+/*if (project.hasProperty("sUser") && project.hasProperty("sUserPass")) {
     val SUSER = project.property("sUser") as String
     val SUSERPASS = project.property("sUserPass") as String
 
@@ -81,18 +93,17 @@ if (project.hasProperty("sUser") && project.hasProperty("sUserPass")) {
             dependsOn("downloadAndVerifyIntExtPack")
         }
     }
-}
+}*/
 
-// https://help.sap.com/viewer/b2f400d4c0414461a4bb7e115dccd779/LATEST/en-US/784f9480cf064d3b81af9cad5739fecc.html
-tasks.register<Copy>("enableModeltMock") {
-    from("hybris/bin/custom/extras/modelt/extensioninfo.disabled")
-    into("hybris/bin/custom/extras/modelt/")
-    rename { "extensioninfo.xml" }
-}
+//***************************
+//* Set up Environment tasks
+//***************************
 
 val symlink = tasks.register("symlinkConfig") {
     println("Generating Config SymLinks...")
+    
     dependsOn("validateEnvironment")
+    mustRunAfter("bootstrapPlatform")
 }
 optionalConfigs.forEach{
     val singleLink = tasks.register<Exec>("symlink${it.key}") {
@@ -124,8 +135,9 @@ tasks.register<Copy>("generateDeveloperProperties") {
     onlyIf {
         envValue == "local"
     }
-    from("${envDir}/local/sample-developer.properties")
-    into("${optionalConfigDirPath}/99-local.properties")
+    from("${envsDirPath}/local/sample-developer.properties")
+    into("${optionalConfigDirPath}")
+    rename { "99-local.properties" }
 
     dependsOn("validateEnvironment")
 }
@@ -135,7 +147,7 @@ tasks.register<WriteProperties>("generateLocalProperties") {
     comment = "GENEREATED AT " + java.time.Instant.now()
     outputFile = project.file("hybris/config/local.properties")
 
-    property("hybris.optional.config.dir", "\${HYBRIS_CONFIG_DIR}/local-config")
+    property("hybris.optional.config.dir", "\${HYBRIS_CONFIG_DIR}/optional-config")
 
     dependsOn("generateDeveloperProperties")
     mustRunAfter("symlinkConfig")

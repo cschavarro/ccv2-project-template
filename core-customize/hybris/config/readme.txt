@@ -1,3 +1,1 @@
-
-put your configuration files here.
-(local.properties, localextensions.xml)
+Configurations files for project goes here

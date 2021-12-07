@@ -69,8 +69,12 @@ wro_addons.xml
 /dependencies/
 /cloud-extension-pack/
 gradle.properties
-hybris/config/local.properties
-hybris/config/solr/instances/default/configsets
+
+hybris/config/*
+!hybris/config/environments/
+!hybris/config/readme.txt
+!hybris/config/.classpath
+!hybris/config/.project
 
 # developer-specific properties
 hybris/config/optional-config

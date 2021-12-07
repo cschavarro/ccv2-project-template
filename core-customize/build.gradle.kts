@@ -145,6 +145,14 @@ tasks.register<Copy>("generateDeveloperProperties") {
     dependsOn("validateEnvironment")
 }
 
+tasks.register<Copy>("copyConfigDir") {
+    println("Copy commons config directory...")
+
+    from("${envsDirPath}/commons")
+    into("hybris/config")
+    exclude ( "common.properties" )
+}
+
 tasks.register<WriteProperties>("generateLocalProperties") {
     println("Generating Local properties...")
     comment = "GENEREATED AT " + java.time.Instant.now()
@@ -153,7 +161,11 @@ tasks.register<WriteProperties>("generateLocalProperties") {
     property("hybris.optional.config.dir", "\${HYBRIS_CONFIG_DIR}/optional-config")
 
     dependsOn("generateDeveloperProperties")
-    mustRunAfter("symlinkConfig")
+    mustRunAfter("symlinkConfig", "copyConfigDir")
+}
+
+tasks.register("generateEnvironment") {
+    dependsOn("symlinkConfig", "copyConfigDir", "generateLocalProperties")
 }
 
 tasks.named("installManifestAddons") {
@@ -164,5 +176,5 @@ tasks.register("setupEnvironment") {
     group = "SAP Commerce"
     description = "Setup local development"
 
-    dependsOn("bootstrapPlatform", "symlinkConfig", "generateLocalProperties","installManifestAddons", "enableModeltMock")
+    dependsOn("bootstrapPlatform", "generateEnvironment","installManifestAddons", "enableModeltMock")
 }

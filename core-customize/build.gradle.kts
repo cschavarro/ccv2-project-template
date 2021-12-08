@@ -165,7 +165,7 @@ tasks.register<WriteProperties>("generateLocalProperties") {
 }
 
 tasks.register("generateEnvironment") {
-    dependsOn("symlinkConfig", "copyConfigDir", "generateLocalProperties")
+    dependsOn("symlinkConfig", "copyConfigDir", "configureSolrConfig", "generateLocalProperties")
 }
 
 tasks.named("installManifestAddons") {
@@ -177,4 +177,45 @@ tasks.register("setupEnvironment") {
     description = "Setup local development"
 
     dependsOn("bootstrapPlatform", "generateEnvironment","installManifestAddons", "enableModeltMock")
+}
+
+//**************************
+//* Solr Setup Configuration
+//**************************
+tasks.register<HybrisAntTask>("startSolr") {
+    args("startSolrServers")
+}
+tasks.register<HybrisAntTask>("stopSolr") {
+    args("stopSolrServers")
+    mustRunAfter("startSolr")
+}
+tasks.register("startStopSolr") {
+    dependsOn("startSolr", "stopSolr")
+}
+tasks.register("configureSolrConfig") {
+    dependsOn("symlinkSolrConfig")
+    group = "Setup"
+    description = "Prepare Solr configuration"
+
+    mustRunAfter("copyConfigDir")
+}
+tasks.register("clearDefaultSolrConfig") {
+    dependsOn("startStopSolr")
+    doLast {
+        val configSetsDir = file("hybris/config/solr/instances/default/configsets");
+        if (configSetsDir.exists()) {
+            delete(configSetsDir)
+        }
+    }
+}
+tasks.register<Exec>("symlinkSolrConfig") {
+    dependsOn("clearDefaultSolrConfig")
+
+    if (Os.isFamily(Os.FAMILY_UNIX)) {
+        commandLine("sh", "-c", "ln -sfn ../../../environments/solr/server/solr/configsets configsets")
+    } else {
+        // https://blogs.windows.com/windowsdeveloper/2016/12/02/symlinks-windows-10/
+        commandLine("cmd", "/c", """mklink /d "configsets" "..\\..\\..\\solr\\server\\solr\\configsets" """)
+    }
+    workingDir("hybris/config/solr/instances/default")
 }

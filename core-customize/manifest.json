@@ -105,7 +105,12 @@
       }
    ],
    "commerceSuiteVersion": "1905.34",
-   "extensionPacks": [ ],
+   "extensionPacks": [
+      {
+        "name": "hybris-cloud-extension-pack",
+        "version": "1905.11"
+      }
+    ],
    "extensions": [
       "modeltacceleratorservices"
    ],
@@ -122,6 +127,9 @@
       "extensions": {
          "exclude": [ ],
          "location": "hybris/config/localextensions.xml"
+      },
+      "solr": {
+         "location": "solr"
       },
       "properties": [
          {

@@ -1,13 +1,9 @@
 plugins {
     id("sap.commerce.build") version("3.6.0")
     id("sap.commerce.build.ccv2") version("3.6.0")
-    id("de.undercouch.download") version("4.1.2")
 }
 import mpern.sap.commerce.build.tasks.HybrisAntTask
 import org.apache.tools.ant.taskdefs.condition.Os
-
-import de.undercouch.gradle.tasks.download.Download
-import de.undercouch.gradle.tasks.download.Verify
 
 val DEPENDENCY_FOLDER = "dependencies"
 repositories {
@@ -212,10 +208,10 @@ tasks.register<Exec>("symlinkSolrConfig") {
     dependsOn("clearDefaultSolrConfig")
 
     if (Os.isFamily(Os.FAMILY_UNIX)) {
-        commandLine("sh", "-c", "ln -sfn ../../../environments/solr/server/solr/configsets configsets")
+        commandLine("sh", "-c", "ln -sfn ../../../../../solr/server/solr/configsets configsets")
     } else {
         // https://blogs.windows.com/windowsdeveloper/2016/12/02/symlinks-windows-10/
-        commandLine("cmd", "/c", """mklink /d "configsets" "..\\..\\..\\solr\\server\\solr\\configsets" """)
+        commandLine("cmd", "/c", """mklink /d "configsets" "..\\..\\..\\..\\..\\solr\\server\\solr\\configsets" """)
     }
     workingDir("hybris/config/solr/instances/default")
 }

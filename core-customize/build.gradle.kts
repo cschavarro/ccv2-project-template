@@ -99,14 +99,18 @@ tasks.register<Copy>("enableModeltMock") {
 //* Set up Environment tasks
 //***************************
 val symlink = tasks.register("symlinkConfig") {
-    println("Generating Config SymLinks...")
+    doFirst {
+        println("Generating Config SymLinks...")
+    }
     
     dependsOn("validateEnvironment")
     mustRunAfter("bootstrapPlatform")
 }
 optionalConfigs.forEach{
     val singleLink = tasks.register<Exec>("symlink${it.key}") {
-        println("Generating SymLink for ${it.key}...")
+        doFirst {
+            println("Generating SymLink for ${it.key}...")
+        }
         val path = it.value.relativeTo(optionalConfigDir)
         if (Os.isFamily(Os.FAMILY_UNIX)) {
             commandLine("sh", "-c", "ln -sfn ${path} ${it.key}")
@@ -123,14 +127,20 @@ optionalConfigs.forEach{
 }
 
 tasks.register("validateEnvironment") {
-    println("Validating environment...")
+    doFirst {
+        println("Validating environment...")
+    }
+    
     if (!file("${envsDirPath}/${envValue}/local.properties").exists()) {
         throw GradleException("Environment folder does not exist")
     }
 }
 
 tasks.register<Copy>("generateDeveloperProperties") {
-    println("Generating Developer properties...")
+    doFirst {
+        println("Generating Developer properties...")
+    }
+    
     onlyIf {
         envValue == "local"
     }
@@ -142,7 +152,9 @@ tasks.register<Copy>("generateDeveloperProperties") {
 }
 
 tasks.register<Copy>("copyConfigDir") {
-    println("Copy commons config directory...")
+    doFirst {
+        println("Copy commons config directory...")
+    }
 
     from("${envsDirPath}/commons")
     into("hybris/config")
@@ -150,7 +162,10 @@ tasks.register<Copy>("copyConfigDir") {
 }
 
 tasks.register<WriteProperties>("generateLocalProperties") {
-    println("Generating Local properties...")
+    doFirst {
+        println("Generating Local properties...")
+    }
+    
     comment = "GENEREATED AT " + java.time.Instant.now()
     outputFile = project.file("hybris/config/local.properties")
 
@@ -164,6 +179,59 @@ tasks.register("generateEnvironment") {
     dependsOn("symlinkConfig", "copyConfigDir", "configureSolrConfig", "generateLocalProperties")
 }
 
+val unpackManifestExtensionPacks = tasks.register("unpackManifestExtensionPacks") {
+    doFirst {
+        println("Unpacking Extension Packs...")
+    }
+}
+CCV2.manifest.extensionPacks.forEach {
+    val unpackExtensionPack = tasks.register<Copy>("unpackExtensionPack-${it.name}") {
+        doFirst {
+            println("Unzipping [${it.name}] extension pack for version ${it.version}")
+        }
+        val extensionPackZip = file("${DEPENDENCY_FOLDER}/${it.name}-${it.version}.zip")
+        if (!extensionPackZip.exists()) {
+            throw GradleException("Extension pack does not exist")
+        }
+
+        from(zipTree(extensionPackZip))
+        into("${DEPENDENCY_FOLDER}/temp")     
+    }
+    
+    val moveExtensionPack = tasks.register<Copy>("moveExtensionPack-${it.name}") {
+        doFirst {
+            println("Moving [${it.name}] extension pack")
+        }
+        // TODO Add support for 20XX Intergration packs folder structure
+        // Structure is diferent
+
+        from("${DEPENDENCY_FOLDER}/temp/commerce-cloud-extension-pack")
+        into("hybris/bin/modules")
+        duplicatesStrategy = DuplicatesStrategy.WARN
+        
+        doLast {
+            delete("${DEPENDENCY_FOLDER}/temp")
+        }
+        mustRunAfter("unpackExtensionPack-${it.name}")
+    }
+
+    unpackManifestExtensionPacks.configure {
+        dependsOn(unpackExtensionPack, moveExtensionPack)
+    }
+}
+
+tasks.register<Copy>("boostrapExtensionPacks") {
+    onlyIf {
+        CCV2.manifest.extensionPacks != null || !CCV2.manifest.extensionPacks.isEmpty()
+    }
+    dependsOn("unpackManifestExtensionPacks")
+    mustRunAfter("bootstrapPlatform")
+}
+
+tasks.register("bootstrapPlatformExt") {
+    dependsOn("bootstrapPlatform", "boostrapExtensionPacks")
+}
+
 tasks.named("installManifestAddons") {
     mustRunAfter("generateLocalProperties")
 }
@@ -172,7 +240,7 @@ tasks.register("setupEnvironment") {
     group = "SAP Commerce"
     description = "Setup local development"
 
-    dependsOn("bootstrapPlatform", "generateEnvironment","installManifestAddons", "enableModeltMock")
+    dependsOn("bootstrapPlatformExt", "generateEnvironment","installManifestAddons", "enableModeltMock")
 }
 
 //**************************

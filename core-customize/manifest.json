@@ -122,7 +122,6 @@
          "template": "yacceleratorstorefront"
       }
    ],
-   "useCloudExtensionPack": false,
    "useConfig": {
       "extensions": {
          "exclude": [ ],

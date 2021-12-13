@@ -5,6 +5,9 @@ plugins {
 import mpern.sap.commerce.build.tasks.HybrisAntTask
 import org.apache.tools.ant.taskdefs.condition.Os
 
+//# Configurations
+val jacocoLib by configurations.creating
+
 val DEPENDENCY_FOLDER = "dependencies"
 repositories {
     flatDir { dirs(DEPENDENCY_FOLDER) }
@@ -12,7 +15,8 @@ repositories {
 }
 
 dependencies {
-    dbDriver("mysql:mysql-connector-java:5.1.34")
+    dbDriver("mysql:mysql-connector-java:8.0.27")
+    jacocoLib("org.jacoco:org.jacoco.agent:0.8.7")
 }
 
 //*******************************
@@ -179,8 +183,14 @@ tasks.register<WriteProperties>("generateLocalProperties") {
     mustRunAfter("symlinkConfig", "copyConfigDir")
 }
 
+tasks.register<Copy>("copyJacocoLibs") {
+    from(jacocoLib)
+    into("hybris/bin/platform/lib")
+}
+
 tasks.register("generateEnvironment") {
-    dependsOn("symlinkConfig", "copyConfigDir", "configureSolrConfig", "generateLocalProperties")
+    dependsOn("symlinkConfig", "copyConfigDir", "copyJacocoLibs", "configureSolrConfig", "generateLocalProperties")
+    mustRunAfter("bootstrapPlatformExt")
 }
 
 val unpackManifestExtensionPacks = tasks.register("unpackManifestExtensionPacks") {

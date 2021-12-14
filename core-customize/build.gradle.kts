@@ -5,8 +5,11 @@ plugins {
 import mpern.sap.commerce.build.tasks.HybrisAntTask
 import org.apache.tools.ant.taskdefs.condition.Os
 
-//# Configurations
+//***********************
+//* Script configurations
+//***********************
 val jacocoLib by configurations.creating
+val extensionPack by configurations.creating
 
 val DEPENDENCY_FOLDER = "dependencies"
 repositories {
@@ -17,6 +20,13 @@ repositories {
 dependencies {
     dbDriver("mysql:mysql-connector-java:8.0.27")
     jacocoLib("org.jacoco:org.jacoco.agent:0.8.7")
+}
+
+//********************************
+//* Helper atributes and functions
+//********************************
+fun createWindowsPath(path: String): String {
+    return path.toString().replace("[/]".toRegex(), "\\")
 }
 
 //*******************************
@@ -31,6 +41,10 @@ val optionalConfigDir = file("${optionalConfigDirPath}")
 val optionalConfigs = mapOf(
     "10-local.properties" to file("${envsDirPath}/commons/common.properties"),
     "20-local.properties" to file("${envsDirPath}/${envValue}/local.properties")
+)
+
+val extensionPacksPaths = mapOf(
+    "hybris-cloud-extension-pack" to "commerce-cloud-extension-pack"
 )
 
 //************
@@ -164,9 +178,27 @@ tasks.register<Copy>("copyConfigDir") {
         println("Copy commons config directory...")
     }
 
+    // coppy excluding local* files 
     from("${envsDirPath}/commons")
     into("hybris/config")
-    exclude ( "common.properties" )
+    exclude ( "common.properties", "localextensions.xml" )
+
+    doLast {
+        println("Linking localextensions...")
+        exec {
+            val extensionsPath = "environments/commons/localextensions.xml"
+            if (Os.isFamily(Os.FAMILY_UNIX)) {
+                commandLine("sh", "-c", "ln -sfn ${extensionsPath} localextensions.xml")
+            } else {
+                // https://blogs.windows.com/windowsdeveloper/2016/12/02/symlinks-windows-10/
+                val windowsPath = createWindowsPath(extensionsPath)
+                commandLine("cmd", "/c", """mklink /d "localextensions.xml" "${windowsPath}" """)
+            }
+            workingDir("hybris/config")
+        }
+    }
+
+    mustRunAfter("symlinkConfig")
 }
 
 tasks.register<WriteProperties>("generateLocalProperties") {
@@ -186,6 +218,8 @@ tasks.register<WriteProperties>("generateLocalProperties") {
 tasks.register<Copy>("copyJacocoLibs") {
     from(jacocoLib)
     into("hybris/bin/platform/lib")
+
+    mustRunAfter("bootstrapPlatform")
 }
 
 tasks.register("generateEnvironment") {
@@ -194,43 +228,48 @@ tasks.register("generateEnvironment") {
 }
 
 val unpackManifestExtensionPacks = tasks.register("unpackManifestExtensionPacks") {
-    doFirst {
+    doLast {
         println("Unpacking Extension Packs...")
+        file("hybris/bin/modules/.lastupdate").createNewFile();
     }
 }
 CCV2.manifest.extensionPacks.forEach {
-    val unpackExtensionPack = tasks.register<Copy>("unpackExtensionPack-${it.name}") {
-        doFirst {
-            println("Unzipping [${it.name}] extension pack for version ${it.version}")
-        }
-        val extensionPackZip = file("${DEPENDENCY_FOLDER}/${it.name}-${it.version}.zip")
-        if (!extensionPackZip.exists()) {
-            throw GradleException("Extension pack does not exist")
-        }
-
-        from(zipTree(extensionPackZip))
-        into("${DEPENDENCY_FOLDER}/temp")     
+    // creates dependency of files
+    extensionPack.defaultDependencies {
+        add(project.dependencies.create("de.hybris.platform:${it.name}:${it.version}@zip"))
     }
-    
-    val moveExtensionPack = tasks.register<Copy>("moveExtensionPack-${it.name}") {
-        doFirst {
-            println("Moving [${it.name}] extension pack")
-        }
-        // TODO Add support for 20XX Intergration packs folder structure
-        // Structure is diferent
 
-        from("${DEPENDENCY_FOLDER}/temp/commerce-cloud-extension-pack")
-        into("hybris/bin/modules")
-        duplicatesStrategy = DuplicatesStrategy.WARN
-        
-        doLast {
-            delete("${DEPENDENCY_FOLDER}/temp")
+    val unpackExtensionPack = tasks.register("unpackExtensionPack-${it.name}") {
+        onlyIf {
+            val isUnpacked = file("hybris/bin/modules/.lastupdate").exists()
+            if (isUnpacked) {
+                logger.lifecycle("Already unpacked!")
+            }
+            !isUnpacked
         }
-        mustRunAfter("unpackExtensionPack-${it.name}")
+        doLast {
+            println("Unpacking [${it.name}] extension pack with version ${it.version}")
+            copy {
+                extensionPack.forEach { 
+                    from(zipTree(it))
+                }
+                into(temporaryDir)     
+            }
+            copy {
+                // Add support for different extension packs folder structure
+                val extensionPackPath = extensionPacksPaths["${it.name}"]
+                val extensionPackStructure = "${temporaryDir.toString()}/${extensionPackPath}" // path based on extension pack
+                from(extensionPackStructure)
+                into("hybris/bin/modules")
+                duplicatesStrategy = DuplicatesStrategy.WARN
+            }
+
+            delete(temporaryDir)
+        }
     }
 
     unpackManifestExtensionPacks.configure {
-        dependsOn(unpackExtensionPack, moveExtensionPack)
+        dependsOn(unpackExtensionPack)
     }
 }
 
@@ -250,6 +289,9 @@ tasks.named("installManifestAddons") {
     mustRunAfter("generateLocalProperties")
 }
 
+//***************************
+//* Main Setup task
+//***************************
 tasks.register("setupEnvironment") {
     group = "SAP Commerce"
     description = "Setup local development"
@@ -289,11 +331,13 @@ tasks.register("clearDefaultSolrConfig") {
 tasks.register<Exec>("symlinkSolrConfig") {
     dependsOn("clearDefaultSolrConfig")
 
+    val solrPath = "../../../../../solr/server/solr/configsets"
     if (Os.isFamily(Os.FAMILY_UNIX)) {
-        commandLine("sh", "-c", "ln -sfn ../../../../../solr/server/solr/configsets configsets")
+        commandLine("sh", "-c", "ln -sfn ${solrPath} configsets")
     } else {
         // https://blogs.windows.com/windowsdeveloper/2016/12/02/symlinks-windows-10/
-        commandLine("cmd", "/c", """mklink /d "configsets" "..\\..\\..\\..\\..\\solr\\server\\solr\\configsets" """)
+        val windowsPath = createWindowsPath(solrPath)
+        commandLine("cmd", "/c", """mklink /d "configsets" "${windowsPath}" """)
     }
     workingDir("hybris/config/solr/instances/default")
 }

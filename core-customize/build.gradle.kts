@@ -120,16 +120,16 @@ tasks.register<Copy>("enableModeltMock") {
 //***************************
 //* Set up Environment tasks
 //***************************
-val symlink = tasks.register("symlinkConfig") {
+val configureProperties = tasks.register("configureProperties") {
     doFirst {
         println("Generating Config SymLinks...")
     }
     
     dependsOn("validateEnvironment")
-    mustRunAfter("bootstrapPlatform")
+    mustRunAfter("bootstrapPlatform", "createConfigDir")
 }
 optionalConfigs.forEach{
-    val singleLink = tasks.register<Exec>("symlink${it.key}") {
+    val optionalPropertySymlink = tasks.register<Exec>("symlink${it.key}") {
         doFirst {
             println("Generating SymLink for ${it.key}...")
         }
@@ -143,8 +143,8 @@ optionalConfigs.forEach{
         }
         workingDir(optionalConfigDir)
     }
-    symlink.configure {
-        dependsOn(singleLink)
+    configureProperties.configure {
+        dependsOn(optionalPropertySymlink)
     }
 }
 
@@ -173,16 +173,8 @@ tasks.register<Copy>("generateDeveloperProperties") {
     dependsOn("validateEnvironment")
 }
 
-tasks.register<Copy>("copyConfigDir") {
-    doFirst {
-        println("Copy commons config directory...")
-    }
-
-    // coppy excluding local* files 
-    from("${envsDirPath}/commons")
-    into("hybris/config")
-    exclude ( "common.properties", "localextensions.xml" )
-
+tasks.register("createConfigDir") {
+    dependsOn("copyCommonConfigDir", "copyEnvConfigDir")
     doLast {
         println("Linking localextensions...")
         exec {
@@ -197,8 +189,30 @@ tasks.register<Copy>("copyConfigDir") {
             workingDir("hybris/config")
         }
     }
+}
 
-    mustRunAfter("symlinkConfig")
+tasks.register<Copy>("copyCommonConfigDir") {
+    doFirst {
+        println("Copy commons config directory...")
+    }
+
+    // copy excluding local* files 
+    from("${envsDirPath}/commons")
+    into("hybris/config")
+    exclude ( "common.properties", "localextensions.xml" )
+}
+
+tasks.register<Copy>("copyEnvConfigDir") {
+    doFirst {
+        println("Copy ${envValue} config directory...")
+    }
+
+    // copy excluding local* files 
+    from("${envsDirPath}/${envValue}")
+    into("hybris/config")
+    exclude ( "local.properties", "sample-developer.properties", "localextensions.xml" )
+
+    mustRunAfter("copyCommonConfigDir")
 }
 
 tasks.register<WriteProperties>("generateLocalProperties") {
@@ -212,7 +226,7 @@ tasks.register<WriteProperties>("generateLocalProperties") {
     property("hybris.optional.config.dir", "\${HYBRIS_CONFIG_DIR}/optional-config")
 
     dependsOn("generateDeveloperProperties")
-    mustRunAfter("symlinkConfig", "copyConfigDir")
+    mustRunAfter("configureProperties", "createConfigDir")
 }
 
 tasks.register<Copy>("copyJacocoLibs") {
@@ -223,7 +237,7 @@ tasks.register<Copy>("copyJacocoLibs") {
 }
 
 tasks.register("generateEnvironment") {
-    dependsOn("symlinkConfig", "copyConfigDir", "copyJacocoLibs", "configureSolrConfig", "generateLocalProperties")
+    dependsOn("createConfigDir", "copyJacocoLibs", "configureSolrConfig", "configureProperties", "generateLocalProperties")
     mustRunAfter("bootstrapPlatformExt")
 }
 
@@ -317,7 +331,7 @@ tasks.register("configureSolrConfig") {
     group = "Setup"
     description = "Prepare Solr configuration"
 
-    mustRunAfter("copyConfigDir")
+    mustRunAfter("createConfigDir")
 }
 tasks.register("clearDefaultSolrConfig") {
     dependsOn("startStopSolr")
